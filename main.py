@@ -24,9 +24,6 @@ def keep_alive():
 keep_alive()
 # -----------------------------------------------
 
-# ------------------ BOT DISCORD -----------------
-TOKEN = os.environ['DISCORD_TOKEN']  # Asegúrate de poner tu token en Railway
-
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -96,7 +93,7 @@ async def on_message(message):
             if role:
                 await message.author.add_roles(role)
 
-        await message.channel.send(f"🎉 {message.author.mention} subió a nivel {new_level}")
+        await message.channel.send(f"ð {message.author.mention} subiÃ³ a nivel {new_level}")
 
     with open("levels.json", "w") as f:
         json.dump(data, f)
@@ -128,7 +125,7 @@ async def leaderboard(interaction: discord.Interaction):
         user = await bot.fetch_user(int(uid))
         text += f"{i}. {user.name} - Nivel {info['level']}\n"
 
-    await interaction.response.send_message(f"🏆 TOP 10\n{text}")
+    await interaction.response.send_message(f"ð TOP 10\n{text}")
 
 # -------- SETLEVEL --------
 @bot.tree.command(name="setlevel")
@@ -173,12 +170,12 @@ async def clear(interaction: discord.Interaction, cantidad: int):
 @bot.tree.command(name="lock")
 async def lock(interaction: discord.Interaction):
     await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
-    await interaction.response.send_message("🔒 Canal bloqueado.")
+    await interaction.response.send_message("ð Canal bloqueado.")
 
 @bot.tree.command(name="unlock")
 async def unlock(interaction: discord.Interaction):
     await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
-    await interaction.response.send_message("🔓 Canal desbloqueado.")
+    await interaction.response.send_message("ð Canal desbloqueado.")
 
 # -------- SLOWMODE --------
 @bot.tree.command(name="slowmode")
@@ -211,19 +208,19 @@ class DropButton(discord.ui.View):
         super().__init__(timeout=None)
         self.claimed = False
 
-    @discord.ui.button(label="🎁 Reclamar Drop", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="ð Reclamar Drop", style=discord.ButtonStyle.green)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.claimed:
             await interaction.response.send_message("Ya fue reclamado.", ephemeral=True)
             return
 
         self.claimed = True
-        await interaction.response.send_message(f"{interaction.user.mention} ganó el drop!")
+        await interaction.response.send_message(f"{interaction.user.mention} ganÃ³ el drop!")
 
 @bot.tree.command(name="drops")
 async def drops(interaction: discord.Interaction):
     view = DropButton()
-    await interaction.response.send_message("🎉 ¡Primer en pulsar gana!", view=view)
+    await interaction.response.send_message("ð Â¡Primer en pulsar gana!", view=view)
 
 # ------------------ RUN BOT -----------------
-bot.run(TOKEN)
+bot.run(os.environ['DISCORD_TOKEN'])
