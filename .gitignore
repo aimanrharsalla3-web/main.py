@@ -1,1 +1,24 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
 
+# Environment / token
+.env
+secrets.env
+
+# Data files (si quieres que se creen automáticamente en Replit, ignoramos estos)
+data/*.json
+
+# Logs y otros temporales
+*.log
+
+# Replit / IDE
+.replit
+.idea/
+.vscode/
+
+# Mac / system files
+.DS_Store
