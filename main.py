@@ -7,11 +7,22 @@ import os
 import json
 import random
 
-# ==================== CONFIGURACIÓN ====================
+# ==================== CONFIG ====================
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Archivos de datos
+OWNER_ID = 123456789  # Pon tu ID real
+WHITELIST = [OWNER_ID]
+
+autorole_id = None
+news_channel_id = None
+log_channel_id = None
+
+join_tracker = []
+anti_nuke_tracker = {}
+backup_data = {}
+
+# ==================== DATA FILES ====================
 DATA_DIR = "data"
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
@@ -21,13 +32,11 @@ WARN_FILE = os.path.join(DATA_DIR, "warnings.json")
 DROP_FILE = os.path.join(DATA_DIR, "drops.json")
 TICKET_FILE = os.path.join(DATA_DIR, "tickets.json")
 
-# Crear archivos si no existen
 for file in [LEVEL_FILE, WARN_FILE, DROP_FILE, TICKET_FILE]:
     if not os.path.exists(file):
         with open(file, "w") as f:
             json.dump({}, f)
 
-# Funciones para leer/escribir JSON
 def load_json(path):
     with open(path, "r") as f:
         return json.load(f)
@@ -36,13 +45,12 @@ def save_json(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
-# Cargar datos
 levels_data = load_json(LEVEL_FILE)
 warns_data = load_json(WARN_FILE)
 drops_data = load_json(DROP_FILE)
 tickets_data = load_json(TICKET_FILE)
 
-# Roles (ajusta según tu server)
+# ==================== ROLES ====================
 MUTE_ROLE_ID = 123456789012345678
 LEVEL_ROLES = {
     1: 1469620510961963092,
@@ -68,7 +76,6 @@ LEVEL_ROLES = {
     100: 1469627222351548540
 }
 
-# Roles para tickets
 ROLES = {
     "helper": "Helper",
     "mod": "Moderador",
@@ -85,12 +92,26 @@ async def on_ready():
     await bot.tree.sync()
     print(f"{bot.user} está listo!")
 
+# ==================== LOG ====================
+async def log(guild, message):
+    if log_channel_id:
+        channel = guild.get_channel(log_channel_id)
+        if channel:
+            await channel.send(f"🛡 {message}")
+
+# ==================== MEMBER JOIN ====================
 @bot.event
 async def on_member_join(member):
-    # Autorole
+    # Autorole original
     role = member.guild.get_role(1469620510961963092)
     if role:
         await member.add_roles(role)
+
+    # Autorole configurable
+    if autorole_id:
+        role2 = member.guild.get_role(autorole_id)
+        if role2:
+            await member.add_roles(role2)
 
     # Mensaje de bienvenida
     channel = None
@@ -113,12 +134,30 @@ async def on_member_join(member):
             embed.set_thumbnail(url=member.avatar.url)
         await channel.send(embed=embed)
 
+    # Anti cuentas nuevas
+    age = (datetime.utcnow() - member.created_at.replace(tzinfo=None)).days
+    if age < 3:
+        await member.kick(reason="Cuenta nueva sospechosa")
+        await log(member.guild, f"🚨 Cuenta nueva expulsada: {member}")
+        return
+
+    # Anti raid
+    now = datetime.utcnow()
+    join_tracker.append(now)
+    join_tracker[:] = [t for t in join_tracker if (now - t).seconds < 10]
+
+    if len(join_tracker) >= 5:
+        for ch in member.guild.text_channels:
+            await ch.set_permissions(member.guild.default_role, send_messages=False)
+        await log(member.guild, "🚨 LOCKDOWN ACTIVADO POR RAID")
+        join_tracker.clear()
+
+# ==================== ON MESSAGE (NIVELES) ====================
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # Sistema de niveles
     uid = str(message.author.id)
     if uid not in levels_data:
         levels_data[uid] = {"xp": 0, "level": 0}
@@ -139,7 +178,7 @@ async def on_message(message):
     save_json(LEVEL_FILE, levels_data)
     await bot.process_commands(message)
 
-# ==================== COMANDOS DE NIVELES ====================
+# ==================== NIVELES ====================
 @bot.tree.command(name="nivel", description="Muestra tu nivel")
 async def nivel(interaction: discord.Interaction):
     uid = str(interaction.user.id)
@@ -162,14 +201,14 @@ async def setlevel(interaction: discord.Interaction, usuario: discord.Member, ni
     save_json(LEVEL_FILE, levels_data)
     await interaction.response.send_message(f"Nivel de {usuario.mention} cambiado a {nivel}")
 
-# ==================== COMANDOS DE WARNS ====================
+# ==================== WARNS ====================
 @bot.tree.command(name="resetwarns", description="Reinicia los warns de un usuario")
 async def resetwarns(interaction: discord.Interaction, usuario: discord.Member):
     warns_data[str(usuario.id)] = 0
     save_json(WARN_FILE, warns_data)
     await interaction.response.send_message("Warns reiniciados.")
 
-# ==================== COMANDOS DE MODERACIÓN ====================
+# ==================== MODERACIÓN ====================
 @bot.tree.command(name="unmute", description="Desmutea a un usuario")
 async def unmute(interaction: discord.Interaction, usuario: discord.Member):
     role = interaction.guild.get_role(MUTE_ROLE_ID)
@@ -226,7 +265,7 @@ async def mute(interaction: discord.Interaction, usuario: discord.Member, tiempo
     await usuario.remove_roles(mute_role)
     await interaction.channel.send(f"🔊 {usuario.mention} ha sido desmuteado automáticamente.")
 
-# ==================== COMANDO DM ====================
+# ==================== DM ====================
 @bot.tree.command(name="msg", description="Envía mensaje privado a un usuario")
 async def msg(interaction: discord.Interaction, usuario: discord.User, mensaje: str):
     try:
@@ -319,14 +358,12 @@ class MainMenuView(View):
         nivel = self.select_mm.values[0]
         await create_mm_ticket(interaction, nivel)
 
-# Comando para mostrar menú
 @bot.tree.command(name="menu", description="Muestra el panel principal de tickets")
 @commands.has_permissions(manage_messages=True)
 async def menu(interaction: discord.Interaction):
     embed = discord.Embed(title="🎫 Panel Principal", description="Selecciona una opción en los menús", color=discord.Color.blue())
     await interaction.response.send_message(embed=embed, view=MainMenuView())
 
-# Crear tickets
 async def create_ticket(interaction, tipo):
     user = interaction.user
     guild = interaction.guild
@@ -368,24 +405,3 @@ async def create_mm_ticket(interaction, nivel):
         "MM Jefe": ROLES["mm_jefe"]
     }
     for rname in nivel_roles:
-        role = discord.utils.get(guild.roles, name=nivel_roles[rname])
-        if role:
-            if nivel in rname or rname=="MM Jefe":
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-    channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
-    tickets_data[str(user.id)] = channel.id
-    save_json(TICKET_FILE, tickets_data)
-
-    view = TicketControlView(channel, user)
-    embed = discord.Embed(title=f"🤝 Ticket MM: {nivel}", description=f"{user.mention}, espera a que un MM lo atienda.", color=discord.Color.blue())
-    await channel.send(embed=embed, view=view)
-    await interaction.response.send_message(f"✅ Ticket MM creado: {channel.mention}", ephemeral=True)
-
-# ==================== RUN ====================
-TOKEN = os.getenv("DISCORD_TOKEN")  # Pon tu token en variables de entorno
-if not TOKEN:
-    print("ERROR: Configura tu token en la variable de entorno DISCORD_TOKEN")
-    exit(1)
-
-bot.run(TOKEN)
