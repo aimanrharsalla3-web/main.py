@@ -11,8 +11,8 @@ import random
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-OWNER_ID = 123456789  # Pon tu ID real
-WHITELIST = [OWNER_ID]
+OWNER_ID = 1469080068310696007 # Pon tu ID real
+WHITELIST = [1469080068310696007]
 
 autorole_id = None
 news_channel_id = None
