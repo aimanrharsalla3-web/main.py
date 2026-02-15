@@ -1,14 +1,31 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from flask import Flask
+from threading import Thread
 import json
 import os
 import random
 
+# ------------------ BOT ------------------
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# -------- ARCHIVOS --------
+# ------------------ MINI SERVIDOR PARA RAILWAY ------------------
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot activo"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# ------------------ ARCHIVOS ------------------
 for file in ["warnings.json", "levels.json"]:
     if not os.path.exists(file):
         with open(file, "w") as f:
@@ -40,13 +57,13 @@ LEVEL_ROLES = {
     100: 1469627222351548540
 }
 
-# -------- READY --------
+# ------------------ READY ------------------
 @bot.event
 async def on_ready():
     await bot.tree.sync()
     print(f"Bot listo como {bot.user}")
 
-# -------- LEVEL SYSTEM --------
+# ------------------ LEVEL SYSTEM ------------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -74,14 +91,14 @@ async def on_message(message):
             if role:
                 await message.author.add_roles(role)
 
-        await message.channel.send(f"ð {message.author.mention} subiÃ³ a nivel {new_level}")
+        await message.channel.send(f"🎉 {message.author.mention} subió a nivel {new_level}")
 
     with open("levels.json", "w") as f:
         json.dump(data, f)
 
     await bot.process_commands(message)
 
-# -------- NIVEL --------
+# ------------------ COMANDOS ------------------
 @bot.tree.command(name="nivel")
 async def nivel(interaction: discord.Interaction):
     with open("levels.json", "r") as f:
@@ -93,7 +110,6 @@ async def nivel(interaction: discord.Interaction):
 
     await interaction.response.send_message(f"Nivel: {level} | XP: {xp}")
 
-# -------- LEADERBOARD --------
 @bot.tree.command(name="leaderboard")
 async def leaderboard(interaction: discord.Interaction):
     with open("levels.json", "r") as f:
@@ -106,9 +122,8 @@ async def leaderboard(interaction: discord.Interaction):
         user = await bot.fetch_user(int(uid))
         text += f"{i}. {user.name} - Nivel {info['level']}\n"
 
-    await interaction.response.send_message(f"ð TOP 10\n{text}")
+    await interaction.response.send_message(f"🏆 TOP 10\n{text}")
 
-# -------- SETLEVEL --------
 @bot.tree.command(name="setlevel")
 async def setlevel(interaction: discord.Interaction, usuario: discord.Member, nivel: int):
     with open("levels.json", "r") as f:
@@ -121,7 +136,6 @@ async def setlevel(interaction: discord.Interaction, usuario: discord.Member, ni
 
     await interaction.response.send_message(f"Nivel de {usuario.mention} cambiado a {nivel}")
 
-# -------- RESET WARNS --------
 @bot.tree.command(name="resetwarns")
 async def resetwarns(interaction: discord.Interaction, usuario: discord.Member):
     with open("warnings.json", "r") as f:
@@ -134,73 +148,69 @@ async def resetwarns(interaction: discord.Interaction, usuario: discord.Member):
 
     await interaction.response.send_message("Warns reiniciados.")
 
-# -------- UNMUTE --------
 @bot.tree.command(name="unmute")
 async def unmute(interaction: discord.Interaction, usuario: discord.Member):
     role = interaction.guild.get_role(MUTE_ROLE_ID)
     await usuario.remove_roles(role)
     await interaction.response.send_message(f"{usuario.mention} desmuteado.")
 
-# -------- CLEAR --------
 @bot.tree.command(name="clear")
 async def clear(interaction: discord.Interaction, cantidad: int):
     await interaction.channel.purge(limit=cantidad)
     await interaction.response.send_message(f"{cantidad} mensajes borrados.", ephemeral=True)
 
-# -------- LOCK / UNLOCK --------
 @bot.tree.command(name="lock")
 async def lock(interaction: discord.Interaction):
     await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
-    await interaction.response.send_message("ð Canal bloqueado.")
+    await interaction.response.send_message("🔒 Canal bloqueado.")
 
 @bot.tree.command(name="unlock")
 async def unlock(interaction: discord.Interaction):
     await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
-    await interaction.response.send_message("ð Canal desbloqueado.")
+    await interaction.response.send_message("🔓 Canal desbloqueado.")
 
-# -------- SLOWMODE --------
 @bot.tree.command(name="slowmode")
 async def slowmode(interaction: discord.Interaction, segundos: int):
     await interaction.channel.edit(slowmode_delay=segundos)
     await interaction.response.send_message(f"Slowmode activado: {segundos}s")
 
-# -------- SAY --------
 @bot.tree.command(name="say")
 async def say(interaction: discord.Interaction, mensaje: str):
     await interaction.response.send_message("Enviado.", ephemeral=True)
     await interaction.channel.send(mensaje)
 
-# -------- EMBED --------
 @bot.tree.command(name="embed")
 async def embed(interaction: discord.Interaction, titulo: str, descripcion: str):
     em = discord.Embed(title=titulo, description=descripcion, color=discord.Color.blue())
     await interaction.response.send_message(embed=em)
 
-# -------- AUTOROLE AL ENTRAR --------
+# ------------------ AUTOROLE ------------------
 @bot.event
 async def on_member_join(member):
     role = member.guild.get_role(1469620510961963092)
     if role:
         await member.add_roles(role)
 
-# -------- DROPS --------
+# ------------------ DROPS ------------------
 class DropButton(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.claimed = False
 
-    @discord.ui.button(label="ð Reclamar Drop", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="🎁 Reclamar Drop", style=discord.ButtonStyle.green)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.claimed:
             await interaction.response.send_message("Ya fue reclamado.", ephemeral=True)
             return
 
         self.claimed = True
-        await interaction.response.send_message(f"{interaction.user.mention} ganÃ³ el drop!")
+        await interaction.response.send_message(f"{interaction.user.mention} ganó el drop!")
 
 @bot.tree.command(name="drops")
 async def drops(interaction: discord.Interaction):
     view = DropButton()
-    await interaction.response.send_message("ð Â¡Primer en pulsar gana!", view=view)
+    await interaction.response.send_message("🎉 ¡Primero en pulsar gana!", view=view)
 
+# ------------------ INICIAR BOT ------------------
+keep_alive()  # Mantener vivo en Railway
 bot.run("TU_TOKEN_AQUI")
